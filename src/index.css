@@ -106,3 +106,316 @@
     color: hsl(var(--foreground));
   }
 }
+
+@layer mobile {
+  @media (max-width: 767px) {
+    html,
+    body {
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      overscroll-behavior-y: contain;
+      overflow-x: hidden;
+    }
+
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      min-height: 100dvh;
+    }
+
+    #root {
+      min-height: 100dvh;
+      width: 100%;
+      overflow-x: hidden;
+    }
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
+
+    button,
+    a,
+    [role="button"] {
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    input,
+    textarea {
+      font-size: 16px !important;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    .\!pointer-events-auto,
+    [class*="rounded-xl"]:not([class*="min-h"]),
+    [class*="rounded-2xl"]:not([class*="min-h"]) {
+      -webkit-mask-image: -webkit-radial-gradient(white, black);
+      mask-image: radial-gradient(white, black);
+    }
+  }
+
+  @media (max-width: 640px) {
+    /* ===== Main Layout mobile tweaks ===== */
+    main[class*="overflow-y-auto"] {
+      padding: 1rem !important;
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+      overscroll-behavior-y: auto;
+    }
+
+    /* ===== Navbar mobile safe area ===== */
+    header[class*="sticky"] {
+      padding-top: calc(env(safe-area-inset-top) + 0.25rem) !important;
+      height: auto !important;
+      min-height: calc(4rem + env(safe-area-inset-top));
+    }
+
+    header[class*="sticky"] > div {
+      height: auto !important;
+      min-height: 4rem;
+      padding-top: 0.25rem !important;
+      padding-bottom: 0.25rem !important;
+    }
+
+    /* ===== Sidebar mobile improvements ===== */
+    div[class*="fixed inset-0"][class*="z-50"] .relative.z-50 {
+      border-top-right-radius: 1.25rem;
+      border-bottom-right-radius: 1.25rem;
+      box-shadow: 20px 0 60px rgba(0, 0, 0, 0.2);
+      padding-top: env(safe-area-inset-top) !important;
+      padding-bottom: env(safe-area-inset-bottom) !important;
+      max-width: 85vw !important;
+      overscroll-behavior: contain;
+    }
+
+    div[class*="fixed inset-0"][class*="z-50"] .relative.z-50 nav {
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+      padding-bottom: 1rem;
+    }
+
+    div[class*="fixed inset-0"][class*="z-50"] > div:first-of-type {
+      animation: fadeInMobile 180ms ease-out forwards;
+    }
+
+    @keyframes fadeInMobile {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    /* ===== Dashboard welcome section ===== */
+    section[class*="rounded-2xl"][class*="p-5"]:not([class*="border-3"]) {
+      padding: 1rem !important;
+      gap: 0.75rem !important;
+    }
+
+    section[class*="rounded-2xl"][class*="p-5"] h1 {
+      font-size: 1.35rem !important;
+      line-height: 1.25 !important;
+    }
+
+    section[class*="rounded-2xl"][class*="p-5"] h1 span {
+      font-size: 0.95rem !important;
+    }
+
+    /* ===== Primary CTA sell card ===== */
+    section > div[class*="rounded-2xl"][class*="border-3"] {
+      padding: 1.25rem !important;
+      border-radius: 1.25rem !important;
+    }
+
+    section > div[class*="rounded-2xl"][class*="border-3"] h2 {
+      font-size: 1.6rem !important;
+      line-height: 1.2 !important;
+    }
+
+    section > div[class*="rounded-2xl"][class*="border-3"] button[class*="min-h-\\[60px\\]"] {
+      min-height: 56px !important;
+      font-size: 1rem !important;
+      padding: 0.875rem 1.25rem !important;
+      width: 100% !important;
+      border-radius: 1rem !important;
+    }
+
+    section > div[class*="rounded-2xl"][class*="border-3"] [class*="grid-cols-1"][class*="sm:grid-cols-3"] {
+      grid-template-columns: 1fr !important;
+      gap: 0.5rem !important;
+    }
+
+    /* ===== Current booking card ===== */
+    [class*="grid-cols-1"][class*="sm:grid-cols-2"][class*="lg:grid-cols-4"] {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 0.625rem !important;
+    }
+
+    [class*="grid-cols-1"][class*="sm:grid-cols-2"][class*="lg:grid-cols-4"] > div {
+      padding: 0.75rem !important;
+      border-radius: 0.875rem !important;
+    }
+
+    [class*="grid-cols-1"][class*="sm:grid-cols-2"][class*="lg:grid-cols-4"] p {
+      font-size: 0.8125rem !important;
+      line-height: 1.3 !important;
+    }
+
+    /* ===== Recommendations grid ===== */
+    [class*="gap-4"][class*="md:grid-cols-3"] {
+      grid-template-columns: 1fr !important;
+      gap: 0.875rem !important;
+    }
+
+    [class*="gap-4"][class*="md:grid-cols-3"] > [class*="Card"] {
+      border-radius: 1rem !important;
+    }
+
+    /* ===== Quick actions grid ===== */
+    [class*="grid-cols-2"][class*="lg:grid-cols-4"] {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 0.625rem !important;
+    }
+
+    [class*="grid-cols-2"][class*="lg:grid-cols-4"] > button {
+      min-height: 104px !important;
+      padding: 0.875rem 0.5rem !important;
+      border-radius: 1rem !important;
+    }
+
+    [class*="grid-cols-2"][class*="lg:grid-cols-4"] > button > div:first-child {
+      width: 3rem !important;
+      height: 3rem !important;
+      margin-bottom: 0.375rem !important;
+    }
+
+    [class*="grid-cols-2"][class*="lg:grid-cols-4"] > button svg {
+      width: 1.5rem !important;
+      height: 1.5rem !important;
+    }
+
+    /* ===== Advisory / info bar ===== */
+    section[class*="bg-muted/30"] [class*="grid-cols-1"][class*="sm:grid-cols-3"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* ===== Toast / notification mobile position ===== */
+    div[class*="fixed top-20 right-4"] {
+      top: calc(4.5rem + env(safe-area-inset-top)) !important;
+      right: 0.75rem !important;
+      left: 0.75rem !important;
+      width: auto !important;
+      max-width: calc(100vw - 1.5rem) !important;
+      border-radius: 1rem !important;
+      padding: 0.875rem 1rem !important;
+      z-index: 9999 !important;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18) !important;
+      animation: slideDownMobile 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes slideDownMobile {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== All modals: full-screen sheet style on mobile ===== */
+    div[class*="fixed inset-0 z-50 flex items-center justify-center"][class*="p-4"] {
+      padding: 0 !important;
+      align-items: flex-end !important;
+    }
+
+    div[class*="fixed inset-0 z-50 flex items-center justify-center"][class*="p-4"] > div[class*="bg-background"] {
+      width: 100% !important;
+      max-width: 100% !important;
+      border-radius: 1.25rem 1.25rem 0 0 !important;
+      padding: 1.25rem !important;
+      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+      max-height: 88dvh !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      box-shadow: 0 -12px 50px rgba(0, 0, 0, 0.22) !important;
+      animation: slideUpSheetMobile 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes slideUpSheetMobile {
+      from { opacity: 0; transform: translateY(40%); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    div[class*="fixed inset-0 z-50 flex items-center justify-center"][class*="p-4"] > div[class*="bg-background"] h3 {
+      font-size: 1.05rem !important;
+    }
+
+    div[class*="fixed inset-0 z-50 flex items-center justify-center"][class*="p-4"] button[class*="h-11"] {
+      min-height: 50px !important;
+      border-radius: 0.875rem !important;
+      font-size: 0.95rem !important;
+    }
+
+    /* ===== Booking modal crop grid ===== */
+    div[class*="grid.grid-cols-2"].gap-2:has(> button) {
+      gap: 0.5rem !important;
+    }
+
+    div[class*="grid.grid-cols-2"].gap-2:has(> button) > button {
+      min-height: 52px !important;
+      padding: 0.75rem 0.625rem !important;
+      border-radius: 0.875rem !important;
+      font-size: 0.875rem !important;
+    }
+
+    /* ===== Language dropdown (Navbar) mobile improvements ===== */
+    div.absolute.right-0.top-full.mt-2.w-48 {
+      right: -0.5rem !important;
+      width: 10rem !important;
+      margin-top: 0.5rem !important;
+      border-radius: 0.875rem !important;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18) !important;
+      overflow: hidden !important;
+    }
+
+    div.absolute.right-0.top-full.mt-2.w-48 button {
+      min-height: 46px !important;
+      padding: 0.625rem 1rem !important;
+      font-size: 0.9rem !important;
+    }
+
+    /* ===== Buttons: enforce minimum 44x44 touch targets on mobile ===== */
+    button,
+    a[href],
+    [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* ===== Placeholder pages: mobile padding tweaks ===== */
+    div.space-y-6.pb-12 {
+      padding-bottom: calc(3rem + env(safe-area-inset-bottom)) !important;
+    }
+
+    div[class*="space-y-6"] > [class*="bg-emerald-50/50"] {
+      padding: 1.125rem !important;
+      border-radius: 1rem !important;
+    }
+
+    /* ===== Help page call button ===== */
+    button:has(> svg.h-5.w-5.text-white) {
+      min-height: 54px !important;
+      border-radius: 1rem !important;
+      font-size: 1rem !important;
+    }
+
+    /* ===== Headings readability tweaks on small phones ===== */
+    @media (max-width: 380px) {
+      h1[class*="text-3xl"] { font-size: 1.5rem !important; line-height: 1.2 !important; }
+      h2[class*="text-xl"], h2[class*="text-lg"] { font-size: 1.05rem !important; }
+      section > div[class*="rounded-2xl"][class*="border-3"] h2 { font-size: 1.35rem !important; }
+
+      [class*="grid-cols-2"][class*="lg:grid-cols-4"] > button > span { font-size: 0.8125rem !important; }
+    }
+  }
+}
