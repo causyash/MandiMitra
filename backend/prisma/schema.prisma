@@ -27,6 +27,8 @@ model Mandi {
   slug      String    @unique
   district  String
   state     String
+   latitude  Float?
+  longitude Float?
   createdAt DateTime  @default(now())
   bookings  Booking[]
 }
