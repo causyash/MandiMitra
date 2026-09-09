@@ -25,6 +25,19 @@ app.post('/crops', async (req, res) => {
   res.status(201).json(crop);
 });
 
+app.get('/mandis', async (req, res) => {
+  const mandis = await prisma.mandi.findMany();
+  res.json(mandis);
+});
+
+app.post('/mandis', async (req, res) => {
+  const { nameEn, nameHi, slug, district, state } = req.body;
+  const mandi = await prisma.mandi.create({
+    data: { nameEn, nameHi, slug, district, state },
+  });
+  res.status(201).json(mandi);
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running at http://localhost:${PORT}`);
 });
