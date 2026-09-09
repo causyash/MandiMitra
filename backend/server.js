@@ -88,7 +88,7 @@ app.get('/mandis/:mandiId/crops/:cropId/price', async (req, res) => {
     format: 'json',
     limit: '10',
     'filters[commodity]': crop.nameEn,
-    'filters[state]': mandi.state,
+    'filters[state.keyword]': mandi.state,
     'filters[district]': mandi.district,
   });
 
@@ -122,6 +122,66 @@ app.get('/mandis/:mandiId/crops/:cropId/price', async (req, res) => {
     maxPriceRsPerQuintal: Number(latest.max_price),
     modalPriceRsPerQuintal: Number(latest.modal_price),
     mspPerQuintal: crop.mspPerQuintal,
+    fetchedAt: new Date().toISOString(),
+  });
+});
+
+app.post('/chatbot/message', async (req, res) => {
+  const { message, farmerPhone } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+
+  let contextText =
+    'You are a helpful assistant for MandiMitra, an app that helps Indian farmers book mandi (market) slots, see live crop prices, and check weather. Answer briefly and clearly, in the same language the farmer writes in (English or Hindi).';
+
+  if (farmerPhone) {
+    const bookings = await prisma.booking.findMany({
+      where: { farmerPhone },
+      include: { crop: true, mandi: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    if (bookings.length > 0) {
+      const bookingSummary = bookings
+        .map(
+          (b) =>
+            `Token ${b.tokenNumber}: ${b.quantityQuintal} quintals of ${b.crop.nameEn} at ${b.mandi.nameEn}, slot date ${b.slotDate.toDateString()}, status ${b.status}`
+        )
+        .join('\n');
+      contextText += `\n\nThis farmer's real recent bookings:\n${bookingSummary}`;
+    } else {
+      contextText += `\n\nThis farmer has no bookings yet.`;
+    }
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+  const geminiRes = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: `${contextText}\n\nFarmer's question: ${message}` }],
+        },
+      ],
+    }),
+  });
+
+  const geminiData = await geminiRes.json();
+
+  if (!geminiRes.ok) {
+    return res.status(geminiRes.status).json({ error: 'Chatbot service error', details: geminiData });
+  }
+
+  const replyText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
+
+  res.json({
+    reply: replyText,
     fetchedAt: new Date().toISOString(),
   });
 });
