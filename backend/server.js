@@ -38,6 +38,36 @@ app.post('/mandis', async (req, res) => {
   res.status(201).json(mandi);
 });
 
+function generateBookingToken() {
+  const year = new Date().getFullYear();
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `MM-${year}-${random}`;
+}
+
+app.post('/bookings', async (req, res) => {
+  const { farmerName, farmerPhone, cropId, mandiId, quantityQuintal, slotDate } = req.body;
+  const booking = await prisma.booking.create({
+    data: {
+      tokenNumber: generateBookingToken(),
+      farmerName,
+      farmerPhone,
+      cropId,
+      mandiId,
+      quantityQuintal,
+      slotDate: new Date(slotDate),
+    },
+    include: { crop: true, mandi: true },
+  });
+  res.status(201).json(booking);
+});
+
+app.get('/bookings', async (req, res) => {
+  const bookings = await prisma.booking.findMany({
+    include: { crop: true, mandi: true },
+  });
+  res.json(bookings);
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running at http://localhost:${PORT}`);
 });
