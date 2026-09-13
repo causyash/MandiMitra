@@ -46,4 +46,18 @@ model Booking {
   slotDate        DateTime
   status          String   @default("CONFIRMED")
   createdAt       DateTime @default(now())
+  grievances      Grievance[]
+}
+model Grievance {
+  id           Int      @id @default(autoincrement())
+  ticketNumber String   @unique
+  farmerName   String
+  farmerPhone  String
+  subject      String
+  description  String
+  status       String   @default("OPEN")
+  bookingId    Int?
+  booking      Booking? @relation(fields: [bookingId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

@@ -8,6 +8,281 @@ const PORT = 4000;
 
 app.use(express.json());
 
+const BOOKING_STATUSES = ['CONFIRMED', 'ARRIVED', 'GRADED', 'PAYMENT_INITIATED', 'PAID', 'CANCELLED'];
+const GRIEVANCE_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'];
+
+function generateBookingToken() {
+  const year = new Date().getFullYear();
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `MM-${year}-${random}`;
+}
+
+function generateTicketNumber() {
+  const year = new Date().getFullYear();
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `GR-${year}-${random}`;
+}
+
+async function fetchLiveWeather(mandi) {
+  if (mandi.latitude == null || mandi.longitude == null) {
+    return { error: 'This mandi has no location coordinates saved yet' };
+  }
+
+  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${mandi.latitude}&lon=${mandi.longitude}&appid=${process.env.OPENWEATHERMAP_API_KEY}&units=metric`;
+  const weatherRes = await fetch(url);
+  const weatherData = await weatherRes.json();
+
+  if (!weatherRes.ok) {
+    return { error: 'Weather service error', details: weatherData };
+  }
+
+  return {
+    mandi: mandi.nameEn,
+    temperatureCelsius: weatherData.main.temp,
+    feelsLikeCelsius: weatherData.main.feels_like,
+    humidityPercent: weatherData.main.humidity,
+    windSpeedMetersPerSecond: weatherData.wind.speed,
+    condition: weatherData.weather[0].main,
+    conditionDescription: weatherData.weather[0].description,
+  };
+}
+
+async function fetchLivePrice(crop, mandi) {
+  const params = new URLSearchParams({
+    'api-key': process.env.DATA_GOV_IN_API_KEY,
+    format: 'json',
+    limit: '10',
+    'filters[commodity]': crop.nameEn,
+    'filters[state.keyword]': mandi.state,
+    'filters[district]': mandi.district,
+  });
+
+  const url = `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?${params.toString()}`;
+  const priceRes = await fetch(url);
+  const priceData = await priceRes.json();
+
+  if (!priceRes.ok) {
+    return { error: 'Price service error', details: priceData };
+  }
+
+  if (!priceData.records || priceData.records.length === 0) {
+    return {
+      error: 'No live price records reported for this crop/district combination right now',
+      crop: crop.nameEn,
+      district: mandi.district,
+      state: mandi.state,
+    };
+  }
+
+  const latest = priceData.records[0];
+
+  return {
+    crop: crop.nameEn,
+    mandi: mandi.nameEn,
+    market: latest.market,
+    variety: latest.variety,
+    arrivalDate: latest.arrival_date,
+    minPriceRsPerQuintal: Number(latest.min_price),
+    maxPriceRsPerQuintal: Number(latest.max_price),
+    modalPriceRsPerQuintal: Number(latest.modal_price),
+    mspPerQuintal: crop.mspPerQuintal,
+  };
+}
+
+const CHATBOT_TOOLS = [
+  {
+    functionDeclarations: [
+      {
+        name: 'createBooking',
+        description:
+          "Create a real mandi slot booking for the current farmer. Only call this AFTER the farmer has explicitly confirmed the crop, quantity, mandi, and date in their most recent message.",
+        parameters: {
+          type: 'object',
+          properties: {
+            cropId: { type: 'number', description: 'The id of the crop, from the crop list given in context.' },
+            mandiId: { type: 'number', description: 'The id of the mandi, from the mandi list given in context.' },
+            quantityQuintal: { type: 'number', description: 'Quantity in quintals.' },
+            slotDate: { type: 'string', description: 'Date in YYYY-MM-DD format.' },
+          },
+          required: ['cropId', 'mandiId', 'quantityQuintal', 'slotDate'],
+        },
+      },
+      {
+        name: 'checkBookingStatus',
+        description: "Check the real current procurement/payment status of one of the farmer's bookings.",
+        parameters: {
+          type: 'object',
+          properties: {
+            bookingId: { type: 'number', description: 'The booking id.' },
+          },
+          required: ['bookingId'],
+        },
+      },
+      {
+        name: 'checkQueueStatus',
+        description: "Check the farmer's real live queue position for a booking that is still waiting.",
+        parameters: {
+          type: 'object',
+          properties: {
+            bookingId: { type: 'number', description: 'The booking id.' },
+          },
+          required: ['bookingId'],
+        },
+      },
+      {
+        name: 'fileGrievance',
+        description: 'File a real grievance/complaint for the current farmer and get back a real ticket number.',
+        parameters: {
+          type: 'object',
+          properties: {
+            subject: { type: 'string', description: 'Short subject line.' },
+            description: { type: 'string', description: 'Full description of the complaint.' },
+            bookingId: { type: 'number', description: 'Optional related booking id.' },
+          },
+          required: ['subject', 'description'],
+        },
+      },
+      {
+        name: 'checkGrievanceStatus',
+        description: 'Check the real current status of a previously filed grievance by its ticket number.',
+        parameters: {
+          type: 'object',
+          properties: {
+            ticketNumber: { type: 'string', description: 'The grievance ticket number, e.g. GR-2026-1234.' },
+          },
+          required: ['ticketNumber'],
+        },
+      },
+      {
+        name: 'getCropPrice',
+        description: 'Get the real live government-reported mandi price for a crop at a specific mandi.',
+        parameters: {
+          type: 'object',
+          properties: {
+            cropId: { type: 'number' },
+            mandiId: { type: 'number' },
+          },
+          required: ['cropId', 'mandiId'],
+        },
+      },
+      {
+        name: 'getMandiWeather',
+        description: 'Get the real live current weather at a specific mandi.',
+        parameters: {
+          type: 'object',
+          properties: {
+            mandiId: { type: 'number' },
+          },
+          required: ['mandiId'],
+        },
+      },
+    ],
+  },
+];
+
+async function runChatbotFunction(name, args, farmer) {
+  try {
+    if (name === 'createBooking') {
+      const crop = await prisma.crop.findUnique({ where: { id: Number(args.cropId) } });
+      const mandi = await prisma.mandi.findUnique({ where: { id: Number(args.mandiId) } });
+      if (!crop || !mandi) return { error: 'Invalid crop or mandi id' };
+
+      const booking = await prisma.booking.create({
+        data: {
+          tokenNumber: generateBookingToken(),
+          farmerName: farmer.farmerName || 'Unknown',
+          farmerPhone: farmer.farmerPhone,
+          cropId: crop.id,
+          mandiId: mandi.id,
+          quantityQuintal: Number(args.quantityQuintal),
+          slotDate: new Date(args.slotDate),
+        },
+        include: { crop: true, mandi: true },
+      });
+
+      return {
+        success: true,
+        bookingId: booking.id,
+        tokenNumber: booking.tokenNumber,
+        crop: booking.crop.nameEn,
+        mandi: booking.mandi.nameEn,
+        quantityQuintal: booking.quantityQuintal,
+        slotDate: booking.slotDate.toDateString(),
+        status: booking.status,
+      };
+    }
+
+    if (name === 'checkBookingStatus') {
+      const booking = await prisma.booking.findUnique({
+        where: { id: Number(args.bookingId) },
+        include: { crop: true, mandi: true },
+      });
+      if (!booking) return { error: 'Booking not found' };
+      return {
+        bookingId: booking.id,
+        tokenNumber: booking.tokenNumber,
+        crop: booking.crop.nameEn,
+        mandi: booking.mandi.nameEn,
+        status: booking.status,
+      };
+    }
+
+    if (name === 'checkQueueStatus') {
+      const booking = await prisma.booking.findUnique({ where: { id: Number(args.bookingId) } });
+      if (!booking) return { error: 'Booking not found' };
+
+      if (booking.status !== 'CONFIRMED') {
+        return { status: booking.status, message: `Not waiting in queue anymore. Current status: ${booking.status}` };
+      }
+
+      const waiting = await prisma.booking.findMany({
+        where: { mandiId: booking.mandiId, status: 'CONFIRMED' },
+        orderBy: [{ slotDate: 'asc' }, { createdAt: 'asc' }],
+      });
+      const position = waiting.findIndex((b) => b.id === booking.id) + 1;
+
+      return { positionInQueue: position, totalWaiting: waiting.length, farmersAhead: position - 1 };
+    }
+
+    if (name === 'fileGrievance') {
+      const grievance = await prisma.grievance.create({
+        data: {
+          ticketNumber: generateTicketNumber(),
+          farmerName: farmer.farmerName || 'Unknown',
+          farmerPhone: farmer.farmerPhone,
+          subject: args.subject,
+          description: args.description,
+          bookingId: args.bookingId ? Number(args.bookingId) : null,
+        },
+      });
+      return { success: true, ticketNumber: grievance.ticketNumber, status: grievance.status };
+    }
+
+    if (name === 'checkGrievanceStatus') {
+      const grievance = await prisma.grievance.findUnique({ where: { ticketNumber: args.ticketNumber } });
+      if (!grievance) return { error: 'Grievance not found' };
+      return { ticketNumber: grievance.ticketNumber, subject: grievance.subject, status: grievance.status };
+    }
+
+    if (name === 'getCropPrice') {
+      const crop = await prisma.crop.findUnique({ where: { id: Number(args.cropId) } });
+      const mandi = await prisma.mandi.findUnique({ where: { id: Number(args.mandiId) } });
+      if (!crop || !mandi) return { error: 'Invalid crop or mandi id' };
+      return await fetchLivePrice(crop, mandi);
+    }
+
+    if (name === 'getMandiWeather') {
+      const mandi = await prisma.mandi.findUnique({ where: { id: Number(args.mandiId) } });
+      if (!mandi) return { error: 'Invalid mandi id' };
+      return await fetchLiveWeather(mandi);
+    }
+
+    return { error: `Unknown function: ${name}` };
+  } catch (err) {
+    return { error: 'Internal error running function', details: String(err) };
+  }
+}
+
 app.get('/', (req, res) => {
   res.send('MandiMitra backend is running!');
 });
@@ -39,158 +314,125 @@ app.post('/mandis', async (req, res) => {
 });
 
 app.get('/mandis/:id/weather', async (req, res) => {
-  const mandi = await prisma.mandi.findUnique({
-    where: { id: Number(req.params.id) },
-  });
-
+  const mandi = await prisma.mandi.findUnique({ where: { id: Number(req.params.id) } });
   if (!mandi) {
     return res.status(404).json({ error: 'Mandi not found' });
   }
-
-  if (mandi.latitude == null || mandi.longitude == null) {
-    return res.status(400).json({ error: 'This mandi has no location coordinates saved yet' });
-  }
-
-  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${mandi.latitude}&lon=${mandi.longitude}&appid=${process.env.OPENWEATHERMAP_API_KEY}&units=metric`;
-
-  const weatherRes = await fetch(url);
-  const weatherData = await weatherRes.json();
-
-  if (!weatherRes.ok) {
-    return res.status(weatherRes.status).json({ error: 'Weather service error', details: weatherData });
-  }
-
-  res.json({
-    mandi: mandi.nameEn,
-    temperatureCelsius: weatherData.main.temp,
-    feelsLikeCelsius: weatherData.main.feels_like,
-    humidityPercent: weatherData.main.humidity,
-    windSpeedMetersPerSecond: weatherData.wind.speed,
-    condition: weatherData.weather[0].main,
-    conditionDescription: weatherData.weather[0].description,
-    fetchedAt: new Date().toISOString(),
-  });
+  const result = await fetchLiveWeather(mandi);
+  res.json({ ...result, fetchedAt: new Date().toISOString() });
 });
 
 app.get('/mandis/:mandiId/crops/:cropId/price', async (req, res) => {
   const mandi = await prisma.mandi.findUnique({ where: { id: Number(req.params.mandiId) } });
   const crop = await prisma.crop.findUnique({ where: { id: Number(req.params.cropId) } });
-
-  if (!mandi) {
-    return res.status(404).json({ error: 'Mandi not found' });
-  }
-  if (!crop) {
-    return res.status(404).json({ error: 'Crop not found' });
-  }
-
-  const params = new URLSearchParams({
-    'api-key': process.env.DATA_GOV_IN_API_KEY,
-    format: 'json',
-    limit: '10',
-    'filters[commodity]': crop.nameEn,
-    'filters[state.keyword]': mandi.state,
-    'filters[district]': mandi.district,
-  });
-
-  const url = `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?${params.toString()}`;
-
-  const priceRes = await fetch(url);
-  const priceData = await priceRes.json();
-
-  if (!priceRes.ok) {
-    return res.status(priceRes.status).json({ error: 'Price service error', details: priceData });
-  }
-
-  if (!priceData.records || priceData.records.length === 0) {
-    return res.status(404).json({
-      error: 'No live price records reported for this crop/district combination right now',
-      crop: crop.nameEn,
-      district: mandi.district,
-      state: mandi.state,
-    });
-  }
-
-  const latest = priceData.records[0];
-
-  res.json({
-    crop: crop.nameEn,
-    mandi: mandi.nameEn,
-    market: latest.market,
-    variety: latest.variety,
-    arrivalDate: latest.arrival_date,
-    minPriceRsPerQuintal: Number(latest.min_price),
-    maxPriceRsPerQuintal: Number(latest.max_price),
-    modalPriceRsPerQuintal: Number(latest.modal_price),
-    mspPerQuintal: crop.mspPerQuintal,
-    fetchedAt: new Date().toISOString(),
-  });
+  if (!mandi) return res.status(404).json({ error: 'Mandi not found' });
+  if (!crop) return res.status(404).json({ error: 'Crop not found' });
+  const result = await fetchLivePrice(crop, mandi);
+  res.json({ ...result, fetchedAt: new Date().toISOString() });
 });
 
 app.post('/chatbot/message', async (req, res) => {
-  const { message, farmerPhone } = req.body;
+  const { message, farmerName, farmerPhone, history } = req.body;
 
-  if (!message) {
-    return res.status(400).json({ error: 'message is required' });
+  if (!message || !farmerPhone) {
+    return res.status(400).json({ error: 'message and farmerPhone are required' });
   }
 
-  let contextText =
-    'You are a helpful assistant for MandiMitra, an app that helps Indian farmers book mandi (market) slots, see live crop prices, and check weather. Answer briefly and clearly, in the same language the farmer writes in (English or Hindi).';
+  const crops = await prisma.crop.findMany();
+  const mandis = await prisma.mandi.findMany();
 
-  if (farmerPhone) {
-    const bookings = await prisma.booking.findMany({
-      where: { farmerPhone },
-      include: { crop: true, mandi: true },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
+  const cropList = crops.map((c) => `id ${c.id}: ${c.nameEn} (${c.nameHi})`).join('\n');
+  const mandiList = mandis.map((m) => `id ${m.id}: ${m.nameEn}, ${m.district}, ${m.state}`).join('\n');
 
-    if (bookings.length > 0) {
-      const bookingSummary = bookings
+  const recentBookings = await prisma.booking.findMany({
+    where: { farmerPhone },
+    include: { crop: true, mandi: true },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+  });
+
+  const bookingSummary = recentBookings.length
+    ? recentBookings
         .map(
           (b) =>
-            `Token ${b.tokenNumber}: ${b.quantityQuintal} quintals of ${b.crop.nameEn} at ${b.mandi.nameEn}, slot date ${b.slotDate.toDateString()}, status ${b.status}`
+            `id ${b.id}, token ${b.tokenNumber}: ${b.quantityQuintal} quintals of ${b.crop.nameEn} at ${b.mandi.nameEn}, slot ${b.slotDate.toDateString()}, status ${b.status}`
         )
-        .join('\n');
-      contextText += `\n\nThis farmer's real recent bookings:\n${bookingSummary}`;
-    } else {
-      contextText += `\n\nThis farmer has no bookings yet.`;
-    }
-  }
+        .join('\n')
+    : 'This farmer has no bookings yet.';
+
+  const systemInstruction = {
+    parts: [
+      {
+        text: `You are MandiMitra's assistant, helping an Indian farmer named ${farmerName || 'a farmer'} (phone ${farmerPhone}) with mandi slot booking, queue status, payment status, grievances, live crop prices, and weather. Reply in the same language the farmer writes in (Hindi or English). Be brief and clear.
+
+Available crops:
+${cropList}
+
+Available mandis:
+${mandiList}
+
+This farmer's real recent bookings:
+${bookingSummary}
+
+Rules:
+- Never call createBooking until the farmer has clearly confirmed the crop, quantity, mandi, and date in their latest message. Always restate the details first and ask "Shall I confirm this booking?" before calling it.
+- If you don't understand the farmer's request or it's outside what you can do, say so honestly and list 2-3 things you can help with instead.
+- Use real ids from the lists above when calling functions.`,
+      },
+    ],
+  };
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
-  const geminiRes = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: `${contextText}\n\nFarmer's question: ${message}` }],
-        },
-      ],
-    }),
-  });
+  let contents = [...(history || []), { role: 'user', parts: [{ text: message }] }];
+  let finalText = null;
+  let loopCount = 0;
 
-  const geminiData = await geminiRes.json();
+  while (loopCount < 5 && finalText === null) {
+    loopCount++;
 
-  if (!geminiRes.ok) {
-    return res.status(geminiRes.status).json({ error: 'Chatbot service error', details: geminiData });
+    const geminiRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction,
+        contents,
+        tools: CHATBOT_TOOLS,
+      }),
+    });
+
+    const geminiData = await geminiRes.json();
+
+    if (!geminiRes.ok) {
+      return res.status(geminiRes.status).json({ error: 'Chatbot service error', details: geminiData });
+    }
+
+    const candidate = geminiData.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+    const functionCallPart = parts.find((p) => p.functionCall);
+
+    contents.push({ role: 'model', parts });
+
+    if (!functionCallPart) {
+      finalText = parts.map((p) => p.text).filter(Boolean).join('\n') || 'Sorry, I could not generate a response.';
+      break;
+    }
+
+    const { name, args } = functionCallPart.functionCall;
+    const result = await runChatbotFunction(name, args, { farmerName, farmerPhone });
+
+    contents.push({
+      role: 'user',
+      parts: [{ functionResponse: { name, response: result } }],
+    });
   }
 
-  const replyText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
-
   res.json({
-    reply: replyText,
+    reply: finalText || 'Sorry, I could not complete that request.',
+    history: contents,
     fetchedAt: new Date().toISOString(),
   });
 });
-
-function generateBookingToken() {
-  const year = new Date().getFullYear();
-  const random = Math.floor(1000 + Math.random() * 9000);
-  return `MM-${year}-${random}`;
-}
 
 app.post('/bookings', async (req, res) => {
   const { farmerName, farmerPhone, cropId, mandiId, quantityQuintal, slotDate } = req.body;
@@ -209,11 +451,136 @@ app.post('/bookings', async (req, res) => {
   res.status(201).json(booking);
 });
 
+app.get('/bookings/:id', async (req, res) => {
+  const booking = await prisma.booking.findUnique({
+    where: { id: Number(req.params.id) },
+    include: { crop: true, mandi: true },
+  });
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+  res.json(booking);
+});
+
+app.get('/bookings/:id/queue', async (req, res) => {
+  const booking = await prisma.booking.findUnique({ where: { id: Number(req.params.id) } });
+  if (!booking) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+
+  if (booking.status !== 'CONFIRMED') {
+    return res.json({
+      bookingId: booking.id,
+      tokenNumber: booking.tokenNumber,
+      status: booking.status,
+      message: `This booking is no longer waiting in queue. Current status: ${booking.status}`,
+    });
+  }
+
+  const waitingBookings = await prisma.booking.findMany({
+    where: { mandiId: booking.mandiId, status: 'CONFIRMED' },
+    orderBy: [{ slotDate: 'asc' }, { createdAt: 'asc' }],
+  });
+
+  const position = waitingBookings.findIndex((b) => b.id === booking.id) + 1;
+
+  res.json({
+    bookingId: booking.id,
+    tokenNumber: booking.tokenNumber,
+    mandiId: booking.mandiId,
+    positionInQueue: position,
+    totalWaiting: waitingBookings.length,
+    farmersAhead: position - 1,
+    fetchedAt: new Date().toISOString(),
+  });
+});
+
+app.post('/bookings/:id/status', async (req, res) => {
+  const { status } = req.body;
+
+  if (!BOOKING_STATUSES.includes(status)) {
+    return res.status(400).json({
+      error: `Invalid status. Must be one of: ${BOOKING_STATUSES.join(', ')}`,
+    });
+  }
+
+  const existing = await prisma.booking.findUnique({ where: { id: Number(req.params.id) } });
+  if (!existing) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+
+  const booking = await prisma.booking.update({
+    where: { id: Number(req.params.id) },
+    data: { status },
+    include: { crop: true, mandi: true },
+  });
+
+  res.json(booking);
+});
+
 app.get('/bookings', async (req, res) => {
   const bookings = await prisma.booking.findMany({
     include: { crop: true, mandi: true },
   });
   res.json(bookings);
+});
+
+app.post('/grievances', async (req, res) => {
+  const { farmerName, farmerPhone, subject, description, bookingId } = req.body;
+
+  if (!farmerName || !farmerPhone || !subject || !description) {
+    return res.status(400).json({ error: 'farmerName, farmerPhone, subject, and description are required' });
+  }
+
+  const grievance = await prisma.grievance.create({
+    data: {
+      ticketNumber: generateTicketNumber(),
+      farmerName,
+      farmerPhone,
+      subject,
+      description,
+      bookingId: bookingId ? Number(bookingId) : null,
+    },
+    include: { booking: true },
+  });
+
+  res.status(201).json(grievance);
+});
+
+app.get('/grievances/:ticketNumber', async (req, res) => {
+  const grievance = await prisma.grievance.findUnique({
+    where: { ticketNumber: req.params.ticketNumber },
+    include: { booking: true },
+  });
+
+  if (!grievance) {
+    return res.status(404).json({ error: 'Grievance not found' });
+  }
+
+  res.json(grievance);
+});
+
+app.post('/grievances/:ticketNumber/status', async (req, res) => {
+  const { status } = req.body;
+
+  if (!GRIEVANCE_STATUSES.includes(status)) {
+    return res.status(400).json({
+      error: `Invalid status. Must be one of: ${GRIEVANCE_STATUSES.join(', ')}`,
+    });
+  }
+
+  const existing = await prisma.grievance.findUnique({ where: { ticketNumber: req.params.ticketNumber } });
+  if (!existing) {
+    return res.status(404).json({ error: 'Grievance not found' });
+  }
+
+  const grievance = await prisma.grievance.update({
+    where: { ticketNumber: req.params.ticketNumber },
+    data: { status },
+    include: { booking: true },
+  });
+
+  res.json(grievance);
 });
 
 app.listen(PORT, () => {
