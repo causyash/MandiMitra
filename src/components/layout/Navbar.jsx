@@ -1,64 +1,75 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import i18n from '../../i18n';
-import { Menu, Bell, User, ChevronDown } from 'lucide-react';
+import { Menu, Sprout, ChevronDown, LogOut } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { motion } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 
 export function Navbar({ toggleSidebar, language, setLanguage }) {
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-  
+  const { farmer, logout } = useAuth();
+  const navigate = useNavigate();
+
   const languages = [
     { code: 'en', label: 'English' },
     { code: 'hi', label: 'हिन्दी' },
-    { code: 'gu', label: 'ગુજરાતી' },
+    { code: 'bn', label: 'বাংলা' },
+    { code: 'te', label: 'తెలుగు' },
     { code: 'mr', label: 'मराठी' },
+    { code: 'ta', label: 'தமிழ்' },
+    { code: 'gu', label: 'ગુજરાતી' },
+    { code: 'kn', label: 'ಕನ್ನಡ' },
+    { code: 'ml', label: 'മലയാളം' },
+    { code: 'pa', label: 'ਪੰਜਾਬੀ' },
+    { code: 'or', label: 'ଓଡ଼ିଆ' },
+    { code: 'as', label: 'অসমীয়া' },
   ];
+
+  function handleLogout() {
+    logout();
+    navigate('/login');
+  }
 
   return (
     <motion.header
       initial={{ y: -50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md"
+      className="sticky top-0 z-40 w-full border-b bg-background/90 backdrop-blur-md"
     >
       <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={toggleSidebar} className="md:hidden">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={toggleSidebar} className="md:hidden !px-2">
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="font-bold text-lg">M</span>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Sprout className="h-5 w-5" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-foreground hidden sm:inline-block">
+            <span className="font-heading text-lg font-bold tracking-tight text-foreground hidden sm:inline-block">
               MandiMitra
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
-          <Button variant="ghost" size="sm" className="relative">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-            <span className="absolute top-2 right-2.5 h-2 w-2 rounded-full bg-destructive" />
-          </Button>
-          
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative">
             <button
               onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-              className="btn btn-sm btn-secondary gap-2 flex items-center px-3 py-1.5 text-sm font-medium rounded-md hover:bg-muted/50 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-input bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             >
-              <User className="h-4 w-4" />
-              <span>{languages.find(l => l.code === language)?.label}</span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground ml-1" />
+              <span>{languages.find((l) => l.code === language)?.label}</span>
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
-            
+
             {isLangMenuOpen && (
               <>
-                <div 
-                  className="fixed inset-0 z-10 bg-black/50 backdrop-blur-sm"
+                <div
+                  className="fixed inset-0 z-10"
                   onClick={() => setIsLangMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 w-48 bg-popover text-popover-foreground rounded-md shadow-lg z-50 overflow-hidden">
+                <div className="absolute right-0 top-full mt-2 max-h-80 w-44 overflow-y-auto rounded-xl border bg-popover text-popover-foreground shadow-lg z-50">
                   <div className="py-1">
                     {languages.map((lang) => (
                       <button
@@ -80,9 +91,20 @@ export function Navbar({ toggleSidebar, language, setLanguage }) {
               </>
             )}
           </div>
-          
-          <Button variant="ghost" size="sm" className="sm:hidden">
-            <User className="h-5 w-5 text-muted-foreground" />
+
+          {farmer && (
+            <div className="hidden sm:flex items-center gap-2 pl-2 border-l">
+              <span className="text-sm font-medium text-foreground truncate max-w-[120px]">
+                {farmer.name}
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="!px-2">
+                <LogOut className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          )}
+
+          <Button variant="ghost" size="sm" className="sm:hidden !px-2" onClick={handleLogout}>
+            <LogOut className="h-5 w-5 text-muted-foreground" />
           </Button>
         </div>
       </div>

@@ -1,11 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = 4000;
-
+// Render (and most hosts) assign their own port via the PORT environment
+// variable - falling back to 4000 keeps local development working exactly
+// as before.
+const PORT = process.env.PORT || 4000;
+app.use(cors());
 app.use(express.json());
 
 const BOOKING_STATUSES = ['CONFIRMED', 'ARRIVED', 'GRADED', 'PAYMENT_INITIATED', 'PAID', 'CANCELLED'];
@@ -283,6 +289,96 @@ async function runChatbotFunction(name, args, farmer) {
   }
 }
 
+function signToken(farmer) {
+  return jwt.sign({ farmerId: farmer.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+}
+
+function toPublicFarmer(farmer) {
+  const { passwordHash, ...rest } = farmer;
+  return rest;
+}
+
+// Verifies the Authorization: Bearer <token> header and attaches the real,
+// freshly-looked-up logged-in farmer to req.farmer for routes that need one.
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Not logged in' });
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const farmer = await prisma.farmer.findUnique({ where: { id: payload.farmerId } });
+    if (!farmer) return res.status(401).json({ error: 'Account no longer exists' });
+    req.farmer = farmer;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired login' });
+  }
+}
+
+app.post('/auth/register', async (req, res) => {
+  const { name, phone, password, state, district, preferredLanguage } = req.body;
+  if (!name || !phone || !password || !state || !district) {
+    return res.status(400).json({ error: 'name, phone, password, state, and district are required' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  const existing = await prisma.farmer.findUnique({ where: { phone } });
+  if (existing) {
+    return res
+      .status(409)
+      .json({ error: 'An account with this phone number already exists. Try logging in instead.' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const farmer = await prisma.farmer.create({
+    data: { name, phone, passwordHash, state, district, preferredLanguage: preferredLanguage || 'hi' },
+  });
+
+  const token = signToken(farmer);
+  res.status(201).json({ token, farmer: toPublicFarmer(farmer) });
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { phone, password } = req.body;
+  if (!phone || !password) {
+    return res.status(400).json({ error: 'phone and password are required' });
+  }
+
+  const farmer = await prisma.farmer.findUnique({ where: { phone } });
+  if (!farmer) {
+    return res.status(401).json({ error: 'No account found with this phone number' });
+  }
+
+  const valid = await bcrypt.compare(password, farmer.passwordHash);
+  if (!valid) {
+    return res.status(401).json({ error: 'Incorrect password' });
+  }
+
+  const token = signToken(farmer);
+  res.json({ token, farmer: toPublicFarmer(farmer) });
+});
+
+app.get('/auth/me', requireAuth, async (req, res) => {
+  res.json(toPublicFarmer(req.farmer));
+});
+
+app.put('/auth/me', requireAuth, async (req, res) => {
+  const { name, state, district, preferredLanguage } = req.body;
+  const updated = await prisma.farmer.update({
+    where: { id: req.farmer.id },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(state !== undefined && { state }),
+      ...(district !== undefined && { district }),
+      ...(preferredLanguage !== undefined && { preferredLanguage }),
+    },
+  });
+  res.json(toPublicFarmer(updated));
+});
+
 app.get('/', (req, res) => {
   res.send('MandiMitra backend is running!');
 });
@@ -301,8 +397,90 @@ app.post('/crops', async (req, res) => {
 });
 
 app.get('/mandis', async (req, res) => {
-  const mandis = await prisma.mandi.findMany();
-  res.json(mandis);
+  const { state, district } = req.query;
+  const where = {};
+  if (state) where.state = state;
+  if (district) where.district = district;
+
+  const mandis = await prisma.mandi.findMany({ where });
+
+  const counts = await prisma.booking.groupBy({
+    by: ['mandiId'],
+    where: { status: 'CONFIRMED' },
+    _count: { _all: true },
+  });
+  const countByMandi = Object.fromEntries(counts.map((c) => [c.mandiId, c._count._all]));
+
+  res.json(mandis.map((m) => ({ ...m, farmersWaiting: countByMandi[m.id] || 0 })));
+});
+
+async function geocodeLocation(query) {
+  const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=${process.env.OPENWEATHERMAP_API_KEY}`;
+  const geoRes = await fetch(url);
+  const geoData = await geoRes.json();
+  if (!geoRes.ok || !Array.isArray(geoData) || geoData.length === 0) return null;
+  return { latitude: geoData[0].lat, longitude: geoData[0].lon };
+}
+
+// Bulk-add real mandis. Each entry only needs a real market name, district,
+// and state (e.g. pulled from the government price dataset) - this route
+// looks up each one's real coordinates via live geocoding rather than
+// requiring lat/long to be typed in by hand, and skips anything already
+// saved (matched by slug) so it's safe to re-run.
+app.post('/mandis/bulk-import', async (req, res) => {
+  const { mandis } = req.body;
+  if (!Array.isArray(mandis)) {
+    return res.status(400).json({ error: 'mandis must be an array' });
+  }
+
+  const results = [];
+  for (const m of mandis) {
+    try {
+      const existing = await prisma.mandi.findUnique({ where: { slug: m.slug } });
+      if (existing) {
+        results.push({ slug: m.slug, status: 'already exists', id: existing.id });
+        continue;
+      }
+
+      const geo = await geocodeLocation(`${m.district},${m.state},IN`);
+      const created = await prisma.mandi.create({
+        data: {
+          nameEn: m.nameEn,
+          nameHi: m.nameHi || m.nameEn,
+          slug: m.slug,
+          district: m.district,
+          state: m.state,
+          latitude: geo?.latitude ?? null,
+          longitude: geo?.longitude ?? null,
+        },
+      });
+      results.push({
+        slug: m.slug,
+        status: geo ? 'created' : 'created (no real coordinates found)',
+        id: created.id,
+      });
+    } catch (err) {
+      results.push({ slug: m.slug, status: 'error', details: String(err) });
+    }
+  }
+
+  res.json(results);
+});
+
+app.get('/mandis/regions', async (req, res) => {
+  const mandis = await prisma.mandi.findMany({ select: { state: true, district: true } });
+
+  const byState = {};
+  for (const m of mandis) {
+    if (!byState[m.state]) byState[m.state] = new Set();
+    byState[m.state].add(m.district);
+  }
+
+  const regions = Object.entries(byState)
+    .map(([state, districts]) => ({ state, districts: Array.from(districts).sort() }))
+    .sort((a, b) => a.state.localeCompare(b.state));
+
+  res.json(regions);
 });
 
 app.post('/mandis', async (req, res) => {
@@ -382,7 +560,7 @@ Rules:
     ],
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   let contents = [...(history || []), { role: 'user', parts: [{ text: message }] }];
   let finalText = null;
@@ -519,8 +697,14 @@ app.post('/bookings/:id/status', async (req, res) => {
 });
 
 app.get('/bookings', async (req, res) => {
+  const { farmerPhone } = req.query;
   const bookings = await prisma.booking.findMany({
+    where: farmerPhone ? { farmerPhone } : undefined,
     include: { crop: true, mandi: true },
+    // Sort by id as a tiebreaker too, so bookings created in quick
+    // succession (same createdAt timestamp) still come back newest-first
+    // in a guaranteed, deterministic order.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
   });
   res.json(bookings);
 });

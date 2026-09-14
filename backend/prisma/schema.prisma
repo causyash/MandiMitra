@@ -10,6 +10,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Farmer {
+  id                Int      @id @default(autoincrement())
+  name              String
+  phone             String   @unique
+  passwordHash      String
+  state             String
+  district          String
+  preferredLanguage String   @default("hi")
+  createdAt         DateTime @default(now())
+}
+
 model Crop {
   id            Int       @id @default(autoincrement())
   nameEn        String
