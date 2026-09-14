@@ -95,6 +95,71 @@ async function fetchLivePrice(crop, mandi) {
   };
 }
 
+// data.gov.in reports arrival_date as DD/MM/YYYY - this turns that into a
+// sortable number so real dates can be ordered chronologically.
+function parseArrivalDate(d) {
+  const [day, month, year] = (d || '').split('/').map(Number);
+  if (!day || !month || !year) return 0;
+  return year * 10000 + month * 100 + day;
+}
+
+// Real day-by-day price points for a crop at a mandi, straight from the
+// same government feed fetchLivePrice uses - just asking for more records
+// and grouping them by the real arrival_date instead of taking only the
+// latest one. The government feed only keeps a short rolling window of
+// recent days (not a long archive), so this may come back with very few
+// distinct dates - the caller shows that honestly instead of drawing a
+// trend line out of a single real point.
+async function fetchPriceHistory(crop, mandi) {
+  const params = new URLSearchParams({
+    'api-key': process.env.DATA_GOV_IN_API_KEY,
+    format: 'json',
+    limit: '100',
+    'filters[commodity]': crop.nameEn,
+    'filters[state.keyword]': mandi.state,
+    'filters[district]': mandi.district,
+  });
+
+  const url = `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?${params.toString()}`;
+  const priceRes = await fetch(url);
+  const priceData = await priceRes.json();
+
+  if (!priceRes.ok) {
+    return { error: 'Price service error', details: priceData };
+  }
+
+  if (!priceData.records || priceData.records.length === 0) {
+    return {
+      error: 'No live price records reported for this crop/district combination right now',
+      crop: crop.nameEn,
+      district: mandi.district,
+      state: mandi.state,
+    };
+  }
+
+  const byDate = new Map();
+  for (const record of priceData.records) {
+    const date = record.arrival_date;
+    const modal = Number(record.modal_price);
+    if (!date || Number.isNaN(modal)) continue;
+    if (!byDate.has(date)) byDate.set(date, []);
+    byDate.get(date).push(modal);
+  }
+
+  const points = Array.from(byDate.entries())
+    .map(([date, prices]) => ({
+      date,
+      modalPriceRsPerQuintal: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length),
+    }))
+    .sort((a, b) => parseArrivalDate(a.date) - parseArrivalDate(b.date));
+
+  return {
+    crop: crop.nameEn,
+    mandi: mandi.nameEn,
+    points,
+  };
+}
+
 const CHATBOT_TOOLS = [
   {
     functionDeclarations: [
@@ -506,6 +571,15 @@ app.get('/mandis/:mandiId/crops/:cropId/price', async (req, res) => {
   if (!mandi) return res.status(404).json({ error: 'Mandi not found' });
   if (!crop) return res.status(404).json({ error: 'Crop not found' });
   const result = await fetchLivePrice(crop, mandi);
+  res.json({ ...result, fetchedAt: new Date().toISOString() });
+});
+
+app.get('/mandis/:mandiId/crops/:cropId/price-history', async (req, res) => {
+  const mandi = await prisma.mandi.findUnique({ where: { id: Number(req.params.mandiId) } });
+  const crop = await prisma.crop.findUnique({ where: { id: Number(req.params.cropId) } });
+  if (!mandi) return res.status(404).json({ error: 'Mandi not found' });
+  if (!crop) return res.status(404).json({ error: 'Crop not found' });
+  const result = await fetchPriceHistory(crop, mandi);
   res.json({ ...result, fetchedAt: new Date().toISOString() });
 });
 

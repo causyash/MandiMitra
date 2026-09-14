@@ -1,9 +1,30 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { MapPin, Loader2, RefreshCw, Navigation, Users, TrendingUp, AlertCircle, Wheat } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  MapPin,
+  Loader2,
+  RefreshCw,
+  Navigation,
+  Users,
+  TrendingUp,
+  AlertCircle,
+  Wheat,
+  LineChart as LineChartIcon,
+  X,
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { getRegions, getMandis, getCrops, getCropPrice } from '../services/api';
+import { getRegions, getMandis, getCrops, getCropPrice, getCropPriceHistory } from '../services/api';
+import { PriceAlertPanel } from '../components/price-alerts/PriceAlertPanel';
 
 const STATE_KEY = 'mandimitra_farmer_state';
 const DISTRICT_KEY = 'mandimitra_farmer_district';
@@ -140,6 +161,32 @@ export function FindMandi() {
   const [location, setLocation] = useState(null); // {lat, lon} or null
   const [locationError, setLocationError] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
+
+  // Real price-trend chart, shown in a modal for whichever mandi card the
+  // farmer taps "Price trend" on.
+  const [trendMandi, setTrendMandi] = useState(null);
+  const [trendData, setTrendData] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState('');
+
+  async function openTrend(mandi) {
+    setTrendMandi(mandi);
+    setTrendData(null);
+    setTrendError('');
+    setTrendLoading(true);
+    try {
+      const data = await getCropPriceHistory(mandi.id, selectedCropId);
+      if (data.error) {
+        setTrendError(data.error);
+      } else {
+        setTrendData(data);
+      }
+    } catch (err) {
+      setTrendError(err.message || 'Could not load price history.');
+    } finally {
+      setTrendLoading(false);
+    }
+  }
 
   // Load the real district suggestions (from mandis already in the database)
   // and the real crop list, once on mount.
@@ -477,6 +524,8 @@ export function FindMandi() {
             </Button>
           </div>
 
+          <PriceAlertPanel crops={crops} mandis={mandisWithDistance} />
+
           {mandisLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading mandis...
@@ -546,6 +595,14 @@ export function FindMandi() {
                         </span>
                         <span className="font-semibold text-foreground">{mandi.farmersWaiting}</span>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => openTrend(mandi)}
+                      >
+                        <LineChartIcon className="h-3.5 w-3.5" /> Price trend
+                      </Button>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -554,6 +611,92 @@ export function FindMandi() {
           </div>
         </>
       )}
+
+      {/* Real price-trend chart, built from the same government feed as the
+          live price - grouped by whichever real arrival dates it reports. */}
+      <AnimatePresence>
+        {trendMandi && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-lg rounded-2xl border bg-background p-6 shadow-2xl"
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="font-heading text-lg font-bold text-foreground">Price trend</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {trendMandi.nameEn} · {crops.find((c) => String(c.id) === String(selectedCropId))?.nameEn}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setTrendMandi(null)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {trendLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading price history...
+                </div>
+              ) : trendError ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">{trendError}</p>
+              ) : trendData && trendData.points && trendData.points.length >= 2 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData.points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        stroke="hsl(var(--muted-foreground))"
+                        width={56}
+                        tickFormatter={(v) => `₹${v}`}
+                      />
+                      <Tooltip
+                        formatter={(value) => [`₹${value}/quintal`, 'Modal price']}
+                        contentStyle={{
+                          background: 'hsl(var(--popover))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: 12,
+                          fontSize: 12,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="modalPriceRsPerQuintal"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2.5}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : trendData && trendData.points && trendData.points.length === 1 ? (
+                <div className="space-y-2 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    The government price feed only has one real data point reported so far for
+                    this crop at this mandi - not enough to draw a trend yet.
+                  </p>
+                  <p className="text-lg font-bold text-primary">
+                    ₹{trendData.points[0].modalPriceRsPerQuintal}/quintal
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      on {trendData.points[0].date}
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No price history is available for this crop at this mandi yet.
+                </p>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -55,6 +55,24 @@ export async function getBookingQueue(bookingId) {
   return res.json();
 }
 
+export async function updateBookingStatus(bookingId, status) {
+  const res = await fetch(`${API_URL}/bookings/${bookingId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Could not update this booking.');
+  return data;
+}
+
+export async function getCropPriceHistory(mandiId, cropId) {
+  const res = await fetch(`${API_URL}/mandis/${mandiId}/crops/${cropId}/price-history`);
+  // Same pattern as getCropPrice - a "not enough data" reply is still a
+  // valid 200 with an `error`/`points` shape, not an HTTP failure.
+  return res.json();
+}
+
 export async function sendChatMessage({ message, farmerName, farmerPhone, history }) {
   const res = await fetch(`${API_URL}/chatbot/message`, {
     method: 'POST',

@@ -1,9 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { FileText, Loader2, Wheat, MapPin, Calendar, Hash } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  FileText,
+  Loader2,
+  Wheat,
+  MapPin,
+  Calendar,
+  Hash,
+  QrCode,
+  Printer,
+  X,
+  XCircle,
+  AlertTriangle,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getBookings } from '../services/api';
+import { getBookings, updateBookingStatus } from '../services/api';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 
 function formatSlotDate(iso) {
   try {
@@ -38,7 +51,12 @@ export function MyBookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const [passBooking, setPassBooking] = useState(null);
+  const [cancelBooking, setCancelBooking] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  function loadBookings() {
     if (!farmer?.phone) return;
     setLoading(true);
     setError('');
@@ -46,7 +64,24 @@ export function MyBookings() {
       .then(setBookings)
       .catch((err) => setError(err.message || 'Could not load your bookings.'))
       .finally(() => setLoading(false));
-  }, [farmer?.phone]);
+  }
+
+  useEffect(loadBookings, [farmer?.phone]);
+
+  async function confirmCancel() {
+    if (!cancelBooking) return;
+    setCancelling(true);
+    setActionError('');
+    try {
+      await updateBookingStatus(cancelBooking.id, 'CANCELLED');
+      setCancelBooking(null);
+      loadBookings();
+    } catch (err) {
+      setActionError(err.message || 'Could not cancel this booking.');
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -127,12 +162,159 @@ export function MyBookings() {
                       <span className="font-mono">{b.tokenNumber}</span>
                     </div>
                   </div>
+
+                  <div className="flex flex-wrap gap-2 border-t pt-3">
+                    <Button variant="outline" size="sm" onClick={() => setPassBooking(b)}>
+                      <QrCode className="h-3.5 w-3.5" /> View pass
+                    </Button>
+                    {b.status === 'CONFIRMED' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          setActionError('');
+                          setCancelBooking(b);
+                        }}
+                      >
+                        <XCircle className="h-3.5 w-3.5" /> Cancel booking
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </Card>
             </motion.div>
           ))}
         </div>
       )}
+
+      {/* Printable pass modal - shows the real token as a QR code, and prints
+          cleanly on its own (see the .printable-pass print rule in index.css). */}
+      <AnimatePresence>
+        {passBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm rounded-2xl border bg-background p-6 shadow-2xl"
+            >
+              <div className="mb-4 flex items-center justify-between print:hidden">
+                <h3 className="font-heading text-lg font-bold text-foreground">Booking pass</h3>
+                <button
+                  onClick={() => setPassBooking(null)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="printable-pass space-y-4 text-center">
+                <div>
+                  <p className="font-heading text-xl font-bold text-foreground">MandiMitra</p>
+                  <p className="text-xs text-muted-foreground">Mandi Slot Booking Pass</p>
+                </div>
+
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                    passBooking.tokenNumber
+                  )}`}
+                  alt={`QR code for token ${passBooking.tokenNumber}`}
+                  className="mx-auto h-44 w-44 rounded-xl border p-2"
+                  width={176}
+                  height={176}
+                />
+
+                <div className="font-mono text-2xl font-black tracking-wide text-primary">
+                  {passBooking.tokenNumber}
+                </div>
+
+                <div className="space-y-1 rounded-xl bg-muted p-4 text-left text-sm">
+                  <p>
+                    <span className="text-muted-foreground">Farmer: </span>
+                    <span className="font-semibold text-foreground">{farmer?.name}</span>
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Crop: </span>
+                    <span className="font-semibold text-foreground">
+                      {passBooking.crop?.nameEn} ({passBooking.crop?.nameHi})
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Mandi: </span>
+                    <span className="font-semibold text-foreground">
+                      {passBooking.mandi?.nameEn}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Date: </span>
+                    <span className="font-semibold text-foreground">
+                      {formatSlotDate(passBooking.slotDate)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex gap-2 print:hidden">
+                <Button variant="outline" className="flex-1" onClick={() => setPassBooking(null)}>
+                  Close
+                </Button>
+                <Button className="flex-1" onClick={() => window.print()}>
+                  <Printer className="h-4 w-4" /> Print
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cancel confirmation modal */}
+      <AnimatePresence>
+        {cancelBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm space-y-4 rounded-2xl border bg-background p-6 shadow-2xl"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-bold text-foreground">Cancel this booking?</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Token {cancelBooking.tokenNumber} - this cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setCancelBooking(null)}
+                  disabled={cancelling}
+                >
+                  Keep booking
+                </Button>
+                <Button
+                  variant="danger"
+                  className="flex-1"
+                  onClick={confirmCancel}
+                  disabled={cancelling}
+                >
+                  {cancelling && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {cancelling ? 'Cancelling...' : 'Yes, cancel'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

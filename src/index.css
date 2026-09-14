@@ -199,3 +199,22 @@
     }
   }
 }
+
+/* Printable booking pass: when the farmer clicks Print inside the pass
+   modal, hide everything on the page except the pass itself, so what comes
+   out of the printer is just the token, QR code and booking details. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-pass,
+  .printable-pass * {
+    visibility: visible;
+  }
+  .printable-pass {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}
