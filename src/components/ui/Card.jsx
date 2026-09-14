@@ -7,7 +7,7 @@ export function Card({ className = '', children, ...props }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className={`rounded-xl border bg-card text-card-foreground shadow-sm ${className}`}
+      className={`rounded-2xl border bg-card text-card-foreground shadow-sm ${className}`}
       {...props}
     >
       {children}
@@ -25,7 +25,7 @@ export function CardHeader({ className = '', children, ...props }) {
 
 export function CardTitle({ className = '', children, ...props }) {
   return (
-    <h3 className={`font-semibold leading-none tracking-tight ${className}`} {...props}>
+    <h3 className={`font-heading font-semibold leading-none tracking-tight ${className}`} {...props}>
       {children}
     </h3>
   );

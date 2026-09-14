@@ -4,12 +4,28 @@ import enTranslation from '../../public/languages/en.json';
 import hiTranslation from '../../public/languages/hi.json';
 import guTranslation from '../../public/languages/gu.json';
 import mrTranslation from '../../public/languages/mr.json';
+import bnTranslation from '../../public/languages/bn.json';
+import teTranslation from '../../public/languages/te.json';
+import taTranslation from '../../public/languages/ta.json';
+import knTranslation from '../../public/languages/kn.json';
+import mlTranslation from '../../public/languages/ml.json';
+import paTranslation from '../../public/languages/pa.json';
+import orTranslation from '../../public/languages/or.json';
+import asTranslation from '../../public/languages/as.json';
 
 const resources = {
   en: { translation: enTranslation },
   hi: { translation: hiTranslation },
   gu: { translation: guTranslation },
   mr: { translation: mrTranslation },
+  bn: { translation: bnTranslation },
+  te: { translation: teTranslation },
+  ta: { translation: taTranslation },
+  kn: { translation: knTranslation },
+  ml: { translation: mlTranslation },
+  pa: { translation: paTranslation },
+  or: { translation: orTranslation },
+  as: { translation: asTranslation },
 };
 
 i18n
@@ -20,6 +36,8 @@ i18n
     lng: 'hi',
     interpolation: {
       escapeValue: false,
+      prefix: '{',
+      suffix: '}',
     },
     returnNull: false,
     returnEmptyString: false,

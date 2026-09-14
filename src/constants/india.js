@@ -1,0 +1,105 @@
+// Shared, real Indian administrative + language data used across the app
+// (Register page, Profile/settings page, Find Mandi page). Kept in one file
+// so state/district/language options stay consistent everywhere a farmer
+// picks them.
+
+// The real, official list of Indian states and union territories.
+export const INDIAN_STATES_AND_UTS = [
+  'Andaman and Nicobar Islands',
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chandigarh',
+  'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jammu and Kashmir',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Ladakh',
+  'Lakshadweep',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Puducherry',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+];
+
+// Real, major administrative districts for each state/UT (not exhaustive,
+// but genuine district names, not invented ones).
+export const INDIAN_DISTRICTS_BY_STATE = {
+  'Andaman and Nicobar Islands': ['South Andaman', 'North and Middle Andaman', 'Nicobar'],
+  'Andhra Pradesh': ['Visakhapatnam', 'Krishna', 'Guntur', 'Nellore', 'Kurnool', 'Chittoor'],
+  'Arunachal Pradesh': ['Papum Pare', 'East Siang', 'West Kameng', 'Lohit', 'Changlang'],
+  Assam: ['Kamrup', 'Dibrugarh', 'Jorhat', 'Nagaon', 'Cachar', 'Sonitpur'],
+  Bihar: ['Patna', 'Gaya', 'Muzaffarpur', 'Bhagalpur', 'Darbhanga', 'Purnia'],
+  Chandigarh: ['Chandigarh'],
+  Chhattisgarh: ['Raipur', 'Bilaspur', 'Durg', 'Korba', 'Rajnandgaon', 'Bastar'],
+  'Dadra and Nagar Haveli and Daman and Diu': ['Dadra and Nagar Haveli', 'Daman', 'Diu'],
+  Delhi: ['New Delhi', 'North Delhi', 'South Delhi', 'East Delhi', 'West Delhi', 'Central Delhi'],
+  Goa: ['North Goa', 'South Goa'],
+  Gujarat: ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bharuch', 'Kheda', 'Amreli', 'Banaskanth', 'Jamnagar'],
+  Haryana: ['Karnal', 'Gurugram', 'Faridabad', 'Hisar', 'Panipat', 'Ambala', 'Rohtak'],
+  'Himachal Pradesh': ['Shimla', 'Kangra', 'Mandi', 'Solan', 'Kullu'],
+  'Jammu and Kashmir': ['Srinagar', 'Jammu', 'Anantnag', 'Baramulla', 'Udhampur'],
+  Jharkhand: ['Ranchi', 'Dhanbad', 'East Singhbhum', 'Bokaro', 'Hazaribagh'],
+  Karnataka: ['Bengaluru Urban', 'Mysuru', 'Belagavi', 'Dharwad', 'Dakshina Kannada', 'Kalaburagi'],
+  Kerala: ['Thiruvananthapuram', 'Ernakulam', 'Kozhikode', 'Thrissur', 'Kollam'],
+  Ladakh: ['Leh', 'Kargil'],
+  Lakshadweep: ['Lakshadweep'],
+  'Madhya Pradesh': ['Bhopal', 'Indore', 'Jabalpur', 'Gwalior', 'Ujjain', 'Bhind', 'Sagar'],
+  Maharashtra: ['Mumbai', 'Pune', 'Nagpur', 'Nashik', 'Chhatrapati Sambhajinagar', 'Ahilyanagar', 'Kolhapur'],
+  Manipur: ['Imphal East', 'Imphal West', 'Thoubal', 'Bishnupur'],
+  Meghalaya: ['East Khasi Hills', 'West Garo Hills', 'Ri Bhoi'],
+  Mizoram: ['Aizawl', 'Lunglei', 'Champhai'],
+  Nagaland: ['Kohima', 'Dimapur', 'Mokokchung'],
+  Odisha: ['Khordha', 'Cuttack', 'Puri', 'Sambalpur', 'Ganjam', 'Balasore'],
+  Puducherry: ['Puducherry', 'Karaikal', 'Mahe', 'Yanam'],
+  Punjab: ['Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda'],
+  Rajasthan: ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Bikaner', 'Ajmer'],
+  Sikkim: ['East Sikkim', 'West Sikkim', 'South Sikkim', 'North Sikkim'],
+  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Erode'],
+  Telangana: ['Hyderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Khammam'],
+  Tripura: ['West Tripura', 'Sepahijala', 'Gomati', 'Dhalai'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Varanasi', 'Agra', 'Meerut', 'Etah', 'Basti', 'Jalaun'],
+  Uttarakhand: ['Dehradun', 'Haridwar', 'Nainital', 'Udham Singh Nagar', 'Almora'],
+  'West Bengal': ['Kolkata', 'Howrah', 'North 24 Parganas', 'Murshidabad', 'Nadia', 'Purba Bardhaman'],
+};
+
+// The main official languages of India's states, used at registration so a
+// farmer can pick the language they actually want the app in. Only
+// en/hi/gu/mr have real translation files wired into the app so far - the
+// rest are stored on the farmer's profile now and will be turned on as
+// translation files are added and reviewed.
+export const LANGUAGES = [
+  { code: 'hi', label: 'हिन्दी (Hindi)' },
+  { code: 'en', label: 'English' },
+  { code: 'bn', label: 'বাংলা (Bengali)' },
+  { code: 'te', label: 'తెలుగు (Telugu)' },
+  { code: 'mr', label: 'मराठी (Marathi)' },
+  { code: 'ta', label: 'தமிழ் (Tamil)' },
+  { code: 'gu', label: 'ગુજરાતી (Gujarati)' },
+  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
+  { code: 'ml', label: 'മലയാളം (Malayalam)' },
+  { code: 'pa', label: 'ਪੰਜਾਬੀ (Punjabi)' },
+  { code: 'or', label: 'ଓଡ଼ିଆ (Odia)' },
+  { code: 'as', label: 'অসমীয়া (Assamese)' },
+];

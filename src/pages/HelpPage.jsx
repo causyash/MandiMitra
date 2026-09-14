@@ -1,68 +1,95 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { PhoneCall, AlertCircle } from 'lucide-react';
+import { PhoneCall, Info, MapPin, Truck, TrendingUp } from 'lucide-react';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+
+const HOW_IT_WORKS = [
+  {
+    icon: MapPin,
+    title: 'Find a mandi',
+    desc: 'Browse real procurement centres near your district and see how busy each one is right now.',
+  },
+  {
+    icon: Truck,
+    title: 'Book a slot',
+    desc: 'Pick your crop, quantity and date to get a real booking token for that mandi.',
+  },
+  {
+    icon: TrendingUp,
+    title: 'Check MSP prices',
+    desc: 'View the latest government Minimum Support Prices before you sell.',
+  },
+];
 
 export function HelpPage() {
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h1 className="text-3xl font-bold text-foreground">किसान सहायता (Help)</h1>
-        <p className="mt-2 text-muted-foreground">Kisan Helpline & Support</p>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
+          किसान सहायता · Help
+        </h1>
+        <p className="mt-1.5 text-muted-foreground">Kisan Call Centre & support</p>
       </motion.div>
 
-      {/* Placeholder Content */}
-      <div className="bg-emerald-50/50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 p-6 space-y-4">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <PhoneCall className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-          <div>
-            <p className="font-semibold text-foreground">Kisan Helpline</p>
-            <p className="text-sm mt-1">
-              Reach out to our support team for assistance with bookings and mandi queries.
-            </p>
+      <Card className="overflow-hidden">
+        <div className="bg-primary leaf-pattern p-6 text-center space-y-2">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-primary-foreground/15">
+            <PhoneCall className="h-5 w-5 text-primary-foreground" />
           </div>
+          <p className="text-xs font-semibold text-primary-foreground/80">
+            Kisan Call Centre · Free Toll-Free Number
+          </p>
+          <div className="text-3xl font-black text-primary-foreground">1800-180-1551</div>
+          <p className="text-xs text-primary-foreground/70">Open 6:00 AM – 10:00 PM, all days</p>
         </div>
+        <div className="p-5">
+          <a href="tel:18001801551">
+            <Button size="lg" variant="gold" className="w-full">
+              <PhoneCall className="h-5 w-5" />
+              Call Kisan Call Centre
+            </Button>
+          </a>
+        </div>
+      </Card>
 
-        <div className="space-y-3 pt-2 border-t border-emerald-200 dark:border-emerald-800">
-          <div className="p-4 rounded-lg bg-muted text-sm space-y-1">
-            <p className="text-muted-foreground/70 font-medium">Support Channels (Demo)</p>
-            <ul className="space-y-1 text-muted-foreground/60 ml-2">
-              <li>• Helpline: 1800-XXX-XXXX</li>
-              <li>• Email: support@mandimitra.org</li>
-              <li>• Working Hours: 8 AM - 8 PM (All Days)</li>
-            </ul>
-          </div>
-
-          <div className="p-4 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700">
-            <div className="flex items-start gap-2 text-sm text-muted-foreground/80">
-              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <p>
-                The actual helpline number and contact details will be configured based on MandiMitra operations team information.
-              </p>
-            </div>
-          </div>
-
-          <button className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
-            <PhoneCall className="h-5 w-5" />
-            <span>Call Helpline Now</span>
-          </button>
+      <div className="space-y-3">
+        <p className="text-sm font-semibold text-foreground">How MandiMitra works</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {HOW_IT_WORKS.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <motion.div
+                key={item.title}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+              >
+                <Card className="h-full">
+                  <div className="space-y-2 p-5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
+                      <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <p className="font-semibold text-foreground text-sm">{item.title}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Quick Links Section */}
-      <div className="space-y-3 pt-4 border-t">
-        <p className="text-sm font-semibold text-foreground">Quick Links:</p>
-        <div className="grid grid-cols-2 gap-3">
-          <a href="#faq" className="p-3 rounded-lg border bg-muted hover:bg-muted/60 text-sm text-center transition-colors">
-            FAQs
-          </a>
-          <a href="#reports" className="p-3 rounded-lg border bg-muted hover:bg-muted/60 text-sm text-center transition-colors">
-            Report Issue
-          </a>
+      <Card className="border-dashed">
+        <div className="flex items-start gap-2.5 p-5 text-sm text-muted-foreground">
+          <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+          <p>
+            Region-specific mandi helpdesk contacts will be added here as they become available.
+            For now, the Kisan Call Centre above can help with any booking or mandi query
+            nationwide.
+          </p>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
